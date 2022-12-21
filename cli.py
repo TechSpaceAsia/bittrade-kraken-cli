@@ -1,4 +1,7 @@
 import inspect
+import logging
+from os import getenv
+
 import orjson
 import sys
 from concurrent.futures import ThreadPoolExecutor
@@ -22,6 +25,13 @@ from bittrade_kraken_rest.endpoints.raw import raw
 from bittrade_kraken_rest.environment.cli import pretty_print, private, kwargs_to_options
 from bittrade_kraken_rest.models.private.get_open_orders import GetOpenOrdersOptions
 
+from bittrade_kraken_cli.logging import setup_logging
+
+logger = logging.getLogger(__name__)
+
+setup_logging(
+    logger, getenv('LOG_LEVEL', logging.WARNING), getenv('REST_LOG_LEVEL', logging.WARNING), getenv('WEBSOCKET_LOG_LEVEL', logging.WARNING)
+)
 
 class Cli:
     @staticmethod
@@ -63,22 +73,23 @@ class Cli:
             }
             if not channels:
                 console.print("Activating token by subbing to ownTrades")
-                ws.send(orjson.dumps(message))
+                enhanced.send_json(message)
                 message["event"] = "unsubscribe"
                 # We should actually wait for the subscription confirmation but it's ok here
                 time.sleep(2)
-                ws.send(orjson.dumps(message))
+                enhanced.send_json(message)
                 console.print("Unsub from ownTrades")
             else:
                 for channel in channels:
                     message['subscription']['name'] = channel
-                ws.send(orjson.dumps(message))
+                    enhanced.send_json(command)
+
         def on_close(*args):
             console.rule('Websocket disconnected; exiting')
             sys.exit(1)
 
         socket_connection = websocket.WebSocketApp("wss://ws-auth.kraken.com", on_message=on_message, on_open=on_open, on_close=on_close)
-        enhanced = EnhancedWebsocket(socket_connection, token)
+        enhanced = EnhancedWebsocket(socket_connection, token=token)
 
         executor = ThreadPoolExecutor()
         executor.submit(socket_connection.run_forever)
@@ -88,11 +99,10 @@ class Cli:
             if command:
                 try:
                     command = orjson.loads(command)
-                    enhanced.send_json(command)
                 except:
                     console.print_exception()
                 else:
-                    socket_connection.send(orjson.dumps(command))
+                    enhanced.send_json(command)
 
     @staticmethod
     def interactive():
