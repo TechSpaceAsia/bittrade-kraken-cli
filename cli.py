@@ -105,6 +105,34 @@ class Cli:
                     enhanced.send_json(command)
 
     @staticmethod
+    def public_websocket():
+        console = Console()
+
+        def on_message(ws, message):
+            if message != '{"event":"heartbeat"}':
+                console.print_json(message)
+
+        def on_close(*args):
+            console.rule('Websocket disconnected; exiting')
+            sys.exit(1)
+
+        socket_connection = None
+        enhanced = EnhancedWebsocket(socket_connection, token='')
+
+        executor = ThreadPoolExecutor()
+        executor.submit(socket_connection.run_forever)
+        executor.shutdown(wait=False)
+
+        while command := console.input('Send message:\n'):
+            if command:
+                try:
+                    command = orjson.loads(command)
+                except:
+                    console.print_exception()
+                else:
+                    enhanced.send_json(command)
+
+    @staticmethod
     def interactive():
         sys.exit(1)
         console = Console()
