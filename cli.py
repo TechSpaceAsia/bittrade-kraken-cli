@@ -20,9 +20,9 @@ from bittrade_kraken_rest import (
     get_server_time,
     get_system_status,
 )
-from bittrade_kraken_rest.endpoints.private.get_websockets_token import get_websockets_token
+from bittrade_kraken_rest import get_websockets_token
 from bittrade_kraken_rest.endpoints.raw import raw
-from bittrade_kraken_rest.environment.cli import pretty_print, private, kwargs_to_options
+from bittrade_kraken_cli import pretty_print, private, kwargs_to_options
 from bittrade_kraken_rest.models.private.get_open_orders import GetOpenOrdersOptions
 
 from bittrade_kraken_cli.logging import setup_logging
@@ -54,6 +54,19 @@ class Cli:
         return pretty_print(
             private(get_websockets_token)
         )()
+
+    @staticmethod
+    def account_transfer(data: Dict):
+        """
+        Account transfer is undocumented, the format is:
+        {"asset": "XXBT", "amount": "1.25", "to": "AA12 N84G ABCD CSIA", "from": "AA06 N84G WXYZ SIYI"
+        """
+        return pretty_print(
+            private(lambda: raw(
+                url='/0/private/AccountTransfer', options=data
+            ))
+        )
+
 
     @staticmethod
     def authenticated_websocket(*channels: List[Literal['ownTrades', 'openOrders']]):

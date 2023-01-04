@@ -5,24 +5,15 @@ from functools import wraps
 from os import getenv
 from typing import Union
 
+import requests
+from bittrade_kraken_rest.models.request import RequestWithResponse, Response
+from rich.console import Console
 from rich.table import Table
 
-import requests
-
-from bittrade_kraken_rest.models.request import Response, RequestWithResponse
-
-try:
-    from rich.console import Console
-
-    console = Console()
-except ImportError:
-    console = None
+console = Console()
 
 
 def pretty_print(func):
-    if not console:
-        raise Exception('Pretty print can only be used with the [fire] version of the library')
-
     @wraps(func)
     def fn(*args, **kwargs):
         outcome: Union[Response, RequestWithResponse] = func(*args, **kwargs)
@@ -102,3 +93,9 @@ def kwargs_to_options(dataclass: dataclasses.dataclass, func):
         )
 
     return fn
+
+__all__ = [
+    "kwargs_to_options",
+    "private",
+    "pretty_print",
+]
