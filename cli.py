@@ -19,8 +19,9 @@ from bittrade_kraken_rest import (
     get_open_orders,
     get_server_time,
     get_system_status,
+    get_websockets_token,
 )
-from bittrade_kraken_rest import get_websockets_token
+from bittrade_kraken_rest.endpoints.private.trade_balance import get_trade_balance
 from bittrade_kraken_rest.endpoints.raw import raw
 from bittrade_kraken_cli import pretty_print, private, kwargs_to_options
 from bittrade_kraken_rest.models.private.get_open_orders import GetOpenOrdersOptions
@@ -53,6 +54,12 @@ class Cli:
     def get_websockets_token():
         return pretty_print(
             private(get_websockets_token)
+        )()
+
+    @staticmethod
+    def get_trade_balance():
+        return pretty_print(
+            private(get_trade_balance)
         )()
 
     @staticmethod
