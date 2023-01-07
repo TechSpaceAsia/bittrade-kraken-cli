@@ -6,7 +6,7 @@ authors = ["Mat <mathieu@redapesolutions.com>"]
 
 [tool.poetry.dependencies]
 python = "^3.10"
-bittrade-kraken-rest = "^0.10.1"
+bittrade-kraken-rest = "^0.12.1"
 fire = "^0.5.0"
 rich = "^12.6.0"
 bittrade-kraken-websocket = "^0.2.2"
