@@ -4,9 +4,9 @@ import urllib.parse
 from functools import wraps
 from os import getenv
 from typing import Union
+from reactivex import operators
 
 import requests
-from bittrade_kraken_rest.models.request import RequestWithResponse, Response
 from rich.console import Console
 from rich.table import Table
 
@@ -50,30 +50,30 @@ def pretty_print(func):
     return fn
 
 
-def private(func):
+def private(request_function, result_function):
     if not console:
-        raise Exception('Pretty print can only be used with the [fire] version of the library')
+        raise Exception('Private can only be used with the [fire] version of the CLI')
+    try:
+        module = importlib.import_module(
+            getenv('KRAKEN_SIGNATURE_MODULE', 'sign')
+        )
+        sign = module.sign
+    except (ImportError, AttributeError) as exc:
+        console.bell()
+        console.line()
+        console.rule('Kraken signature implementation missing')
+        console.print('''
+            This library believes in BYOS (Bring Your Own Signature).
+            Implement the signing of request yourself and export its module path to env [red]KRAKEN_SIGNATURE_MODULE[/red] (default 'sign.py') 
+            See the README for code sample
+        ''')
+        raise exc
 
-    @wraps(func)
     def fn(*args, **kwargs):
-        try:
-            module = importlib.import_module(
-                getenv('KRAKEN_SIGNATURE_MODULE', 'sign')
-            )
-            sign = module.sign
-        except (ImportError, AttributeError) as exc:
-            console.bell()
-            console.line()
-            console.rule('Kraken signature implementation missing')
-            console.print('''
-                This library believes in BYOS (Bring Your Own Signature).
-                Implement the signing of request yourself and export its module path to env [red]KRAKEN_SIGNATURE_MODULE[/red] (default 'sign.py') 
-                See the README for code sample
-            ''')
-            raise exc
-        with func(**kwargs) as prep:
-            sign(prep)
-        return prep.response
+        return request_function(*args).pipe(
+            operators.map(sign),
+            result_function()
+        )
 
 
     return fn
