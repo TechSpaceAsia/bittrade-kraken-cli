@@ -4,25 +4,16 @@ import urllib.parse
 from functools import wraps
 from os import getenv
 from typing import Union
-
-from rich.table import Table
+from reactivex import operators
 
 import requests
+from rich.console import Console
+from rich.table import Table
 
-from bittrade_kraken_rest.models.request import Response, RequestWithResponse
-
-try:
-    from rich.console import Console
-
-    console = Console()
-except ImportError:
-    console = None
+console = Console()
 
 
 def pretty_print(func):
-    if not console:
-        raise Exception('Pretty print can only be used with the [fire] version of the library')
-
     @wraps(func)
     def fn(*args, **kwargs):
         outcome: Union[Response, RequestWithResponse] = func(*args, **kwargs)
@@ -59,30 +50,30 @@ def pretty_print(func):
     return fn
 
 
-def private(func):
+def private(request_function, result_function):
     if not console:
-        raise Exception('Pretty print can only be used with the [fire] version of the library')
+        raise Exception('Private can only be used with the [fire] version of the CLI')
+    try:
+        module = importlib.import_module(
+            getenv('KRAKEN_SIGNATURE_MODULE', 'sign')
+        )
+        sign = module.sign
+    except (ImportError, AttributeError) as exc:
+        console.bell()
+        console.line()
+        console.rule('Kraken signature implementation missing')
+        console.print('''
+            This library believes in BYOS (Bring Your Own Signature).
+            Implement the signing of request yourself and export its module path to env [red]KRAKEN_SIGNATURE_MODULE[/red] (default 'sign.py') 
+            See the README for code sample
+        ''')
+        raise exc
 
-    @wraps(func)
     def fn(*args, **kwargs):
-        try:
-            module = importlib.import_module(
-                getenv('KRAKEN_SIGNATURE_MODULE', 'sign')
-            )
-            sign = module.sign
-        except (ImportError, AttributeError) as exc:
-            console.bell()
-            console.line()
-            console.rule('Kraken signature implementation missing')
-            console.print('''
-                This library believes in BYOS (Bring Your Own Signature).
-                Implement the signing of request yourself and export its module path to env [red]KRAKEN_SIGNATURE_MODULE[/red] (default 'sign.py') 
-                See the README for code sample
-            ''')
-            raise exc
-        with func(**kwargs) as prep:
-            sign(prep)
-        return prep.response
+        return request_function(*args).pipe(
+            operators.map(sign),
+            result_function()
+        )
 
 
     return fn
@@ -102,3 +93,9 @@ def kwargs_to_options(dataclass: dataclasses.dataclass, func):
         )
 
     return fn
+
+__all__ = [
+    "kwargs_to_options",
+    "private",
+    "pretty_print",
+]

@@ -8,6 +8,8 @@ from concurrent.futures import ThreadPoolExecutor
 import time
 from typing import Dict, Literal, List
 
+from reactivex import operators
+
 import fire
 import websocket
 from bittrade_kraken_websocket.connection.generic import EnhancedWebsocket
@@ -15,17 +17,20 @@ from rich.console import Console
 from rich.table import Table
 
 from bittrade_kraken_rest import (
-    get_account_balance,
-    get_open_orders,
+    get_account_balance_request,
+    get_account_balance_result,
+    get_open_orders_request,
+    get_open_orders_result,
     get_server_time,
     get_system_status,
+    get_websockets_token_request,
+    get_websockets_token_result,
+    GetOpenOrdersOptions
 )
-from bittrade_kraken_rest.endpoints.private.get_websockets_token import get_websockets_token
-from bittrade_kraken_rest.endpoints.raw import raw
-from bittrade_kraken_rest.environment.cli import pretty_print, private, kwargs_to_options
-from bittrade_kraken_rest.models.private.get_open_orders import GetOpenOrdersOptions
+from bittrade_kraken_cli import pretty_print, private, kwargs_to_options
 
 from bittrade_kraken_cli.logging import setup_logging
+
 
 logger = logging.getLogger(__name__)
 
@@ -43,17 +48,35 @@ class Cli:
         """
         options = data or {}
 
-        return pretty_print(
-            private(
-                kwargs_to_options(GetOpenOrdersOptions, get_open_orders)
-            )
-        )(**options)
+        return private(
+            get_open_orders_request, get_open_orders_result
+        )().run()
+        
 
     @staticmethod
     def get_websockets_token():
         return pretty_print(
             private(get_websockets_token)
         )()
+
+    @staticmethod
+    def get_trade_balance():
+        return pretty_print(
+            private(get_trade_balance)
+        )()
+
+    @staticmethod
+    def account_transfer(data: Dict):
+        """
+        Account transfer is undocumented, the format is:
+        {"asset": "XXBT", "amount": "1.25", "to": "AA12 N84G ABCD CSIA", "from": "AA06 N84G WXYZ SIYI"
+        """
+        return pretty_print(
+            private(lambda: raw(
+                url='/0/private/AccountTransfer', options=data
+            ))
+        )
+
 
     @staticmethod
     def authenticated_websocket(*channels: List[Literal['ownTrades', 'openOrders']]):
