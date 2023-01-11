@@ -173,8 +173,12 @@ class Cli:
         return pretty_print(get_system_status)()
 
     @staticmethod
-    def raw():
-        return pretty_print(raw)
+    def raw(privacy: Literal['public', 'private'], url, data):
+        if privacy == 'public':
+            fn = pretty_print(raw)
+        else:
+            fn = pretty_print(private(raw))
+        return fn(url=url, options=data)
 
 
 if __name__ == '__main__':
