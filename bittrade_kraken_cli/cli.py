@@ -7,47 +7,44 @@ from typing import Union
 from reactivex import operators
 
 import requests
+from requests.models import Response
 from rich.console import Console
 from rich.table import Table
 
 console = Console()
 
 
-def pretty_print(func):
-    @wraps(func)
-    def fn(*args, **kwargs):
-        outcome: Union[Response, RequestWithResponse] = func(*args, **kwargs)
-        response: requests.Response = outcome.response
-        request: requests.Request = response.request
+def pretty_print(response: Response):
+    request: requests.Request = response.request
+    console.line()
+    if response.ok:
+        body = response.json()
+        if body['error']:
+            style = 'red'
+        else:
+            style = 'green'
+    else:
+        style = 'bold red'
+    console.rule(request.url, style=style)
+    if response.ok:
+        console.print_json(response.text)
         console.line()
-        if response.ok:
-            if not outcome.get_error():
-                style = 'green'
-            else:
-                style = 'red'
-        else:
-            style = 'bold red'
-        console.rule(request.url, style=style)
-        if response.ok:
-            console.print_json(response.text)
-            console.line()
-        else:
-            console.print(f'Failed with status {response.status_code}')
-        posted_data = urllib.parse.parse_qs(request.body)
-        table = Table('Name', 'Value')
-        for k, v in posted_data.items():
-            if k == 'nonce':
-                continue
-            table.add_row(k, v[0])
-        if len(table.rows):
-            console.rule('Data sent:', style='cyan')
-            console.print(table)
-            console.line()
-        console.rule('From request:', style='cyan')
-        console.print(request.__dict__)
-        console.line(2)
+    else:
+        console.print(f'Failed with status {response.status_code}')
+    posted_data = urllib.parse.parse_qs(request.body)
+    table = Table('Name', 'Value')
+    for k, v in posted_data.items():
+        if k == 'nonce':
+            continue
+        table.add_row(k, v[0])
+    if len(table.rows):
+        console.rule('Data sent:', style='cyan')
+        console.print(table)
+        console.line()
+    console.rule('From request:', style='cyan')
+    console.print(request.__dict__)
+    console.line(2)
 
-    return fn
 
 
 def private(request_function, result_function):
@@ -69,14 +66,10 @@ def private(request_function, result_function):
         ''')
         raise exc
 
-    def fn(*args, **kwargs):
-        return request_function(*args).pipe(
-            operators.map(sign),
-            result_function()
-        )
-
-
-    return fn
+    return request_function().pipe(
+        operators.starmap(sign),
+        operators.flat_map(result_function)
+    )
 
 
 def kwargs_to_options(dataclass: dataclasses.dataclass, func):

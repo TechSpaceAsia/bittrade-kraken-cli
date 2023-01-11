@@ -1,3 +1,4 @@
+import functools
 import inspect
 import logging
 from os import getenv
@@ -25,6 +26,7 @@ from bittrade_kraken_rest import (
     get_system_status,
     get_websockets_token_request,
     get_websockets_token_result,
+    send,
     GetOpenOrdersOptions
 )
 from bittrade_kraken_cli import pretty_print, private, kwargs_to_options
@@ -48,9 +50,13 @@ class Cli:
         """
         options = data or {}
 
-        return private(
-            get_open_orders_request, get_open_orders_result
-        )().run()
+        response = private(
+            functools.partial(get_open_orders_request, GetOpenOrdersOptions(**options)),
+            send
+        ).run()
+
+
+        return pretty_print(response)
         
 
     @staticmethod

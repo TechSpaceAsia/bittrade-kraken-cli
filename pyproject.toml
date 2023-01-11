@@ -2,18 +2,18 @@
 name = "bittrade-kraken-cli"
 version = "0.1.0"
 description = ""
-authors = ["Mat <mathieu@redapesolutions.com>"]
+authors = ["Mat <matt@techspace.asia>"]
 
 [tool.poetry.dependencies]
 python = "^3.10"
 bittrade-kraken-rest = "^0.12.1"
 fire = "^0.5.0"
 rich = "^12.6.0"
-bittrade-kraken-websocket = "^0.3.1"
+bittrade-kraken-websocket = "^0.3.2"
 
-[tool.poetry.dev-dependencies]
-pytest = "^5.2"
-bittrade-kraken-websocket = {path = "../bittrade-kraken-websocket"}
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^7.2.0"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
