@@ -1,35 +1,44 @@
-import functools
+from functools import partial
 import inspect
 import logging
 from os import getenv
 
+from reactivex import operators, just, concat
 import orjson
 import sys
 from concurrent.futures import ThreadPoolExecutor
 import time
-from typing import Dict, Literal, List
+from typing import Any, Dict, Literal, List
 
-from reactivex import operators
+from rich.prompt import Confirm
 
 import fire
 import websocket
-from bittrade_kraken_websocket.connection.generic import EnhancedWebsocket
+from bittrade_kraken_websocket import (
+    public_websocket_connection,
+    private_websocket_connection,
+    EnhancedWebsocket,
+)
+from bittrade_kraken_websocket.operators import (
+    keep_messages_only,
+    filter_new_socket_only
+)
 from rich.console import Console
 from rich.table import Table
 
 from bittrade_kraken_rest import (
     get_account_balance_request,
-    get_account_balance_result,
+    get_trade_history_request,
     get_open_orders_request,
-    get_open_orders_result,
-    get_server_time,
     get_system_status,
     get_websockets_token_request,
-    get_websockets_token_result,
     send,
-    GetOpenOrdersOptions
+    GetOpenOrdersOptions,
+    GetTradeHistoryOptions
 )
-from bittrade_kraken_cli import pretty_print, private, kwargs_to_options
+from bittrade_kraken_rest.endpoints.public.server_time import get_server_time_response
+from bittrade_kraken_rest.endpoints.public.system_status import get_system_status_response
+from bittrade_kraken_cli import pretty_print, private, console_input
 
 from bittrade_kraken_cli.logging import setup_logging
 
@@ -42,34 +51,51 @@ setup_logging(
 
 class Cli:
     @staticmethod
-    def get_open_orders(data: Dict = None):
+    def get_open_orders(data: dict[str, Any] = None):
         """
 
         :param data: Json string in the GetOpenOrdersOptions format; refer https://docs.kraken.com/rest/#tag/User-Data/operation/getOpenOrders
         :return:
         """
-        options = data or {}
+        options = GetOpenOrdersOptions(**(data or {}))
 
-        response = private(
-            functools.partial(get_open_orders_request, GetOpenOrdersOptions(**options)),
-            send
-        ).run()
-
-
-        return pretty_print(response)
+        return pretty_print(
+            private(
+            partial(get_open_orders_request, ),
+                send
+            ).run()
+        )
         
 
     @staticmethod
     def get_websockets_token():
         return pretty_print(
-            private(get_websockets_token)
-        )()
+            private(
+                get_websockets_token_request,
+                send
+            ).run()
+        )
 
     @staticmethod
-    def get_trade_balance():
-        return pretty_print(
-            private(get_trade_balance)
-        )()
+    def get_trade_history(data: dict[str, Any] = None):
+        options = GetTradeHistoryOptions(**(data or {}))
+        options.ofs = options.ofs or 0
+        def next_page_and_continue():
+            response = private(
+                partial(get_trade_history_request, options),
+                send
+            ).run()
+            pretty_print(response)
+            if response.json()['result'].get('count') > options.ofs * 50:
+                return True
+            return False
+        while next_page_and_continue():
+            input = Confirm.ask(f'Load page {options.ofs+2}?')
+            if input:
+                options.ofs += 1
+            else:
+                break
+            
 
     @staticmethod
     def account_transfer(data: Dict):
@@ -137,22 +163,13 @@ class Cli:
     def public_websocket():
         console = Console()
 
-        def on_message(ws, message):
-            if message != '{"event":"heartbeat"}':
-                console.print_json(message)
+        socket_connection = public_websocket_connection(reconnect=True)
+        socket_connection.pipe(
+            # keep_messages_only()
+        ).subscribe(on_next=console.print)
+        sub = socket_connection.connect()
 
-        def on_close(*args):
-            console.rule('Websocket disconnected; exiting')
-            sys.exit(1)
-
-        socket_connection = None
-        enhanced = EnhancedWebsocket(socket_connection, token='')
-
-        executor = ThreadPoolExecutor()
-        executor.submit(socket_connection.run_forever)
-        executor.shutdown(wait=False)
-
-        while command := console.input('Send message:\n'):
+        def parse_and_send(command: str, enhanced: EnhancedWebsocket):
             if command:
                 try:
                     command = orjson.loads(command)
@@ -160,6 +177,24 @@ class Cli:
                     console.print_exception()
                 else:
                     enhanced.send_json(command)
+        
+        new_socket = socket_connection.pipe(
+            filter_new_socket_only(),
+            operators.share()
+        )
+        concat(
+            new_socket.pipe(
+                operators.take(1),
+                operators.ignore_elements()
+            ),
+            console_input(console)
+        ).pipe(
+            operators.with_latest_from(new_socket),
+        ).subscribe(
+            on_next=lambda x: parse_and_send(*x),
+            on_completed=sub.dispose,
+            on_error=lambda exc: console.print('Error on socket %s', exc)
+        )
 
     @staticmethod
     def interactive():
@@ -195,11 +230,11 @@ class Cli:
 
     @staticmethod
     def get_server_time():
-        return pretty_print(get_server_time)()
+        return pretty_print(get_server_time_response().run())
 
     @staticmethod
     def get_system_status():
-        return pretty_print(get_system_status)()
+        return pretty_print(get_system_status_response().run())
 
     @staticmethod
     def raw(privacy: Literal['public', 'private'], url, data):

@@ -1,0 +1,9 @@
+{
+    "event": "subscribe",
+    "subscription": {
+        "name": "ticker"
+    },
+    "pair": [
+        "USDT/USD"
+    ]
+}

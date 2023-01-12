@@ -10,6 +10,15 @@ CLI for Kraken REST and websockets
 
 ```python cli.py get_system_status```
 
+## Features
+
+- Public and private endpoints
+- Bring your own signature: library has no access to your credentials (at the cost of one copy/paste of code, see [Authentication](#authentication))
+- Pagination where relevant (you will be prompted whether or not to load next page)
+- Reconnecting websocket (both public and private)
+- Private websocket authentication handled (same caveat about needing [Authentication](#authentication))
+- Google's Fire means you can set up bash autocompletion
+
 ## Authentication
 
 When using private endpoints, you will need to set up your own authentication function. This way, our library never has access to your API secret.
@@ -47,3 +56,27 @@ def sign(request: requests.PreparedRequest, url: str, data: dict[str, Any]):
     return request
 
 ```
+
+## REST Endpoints
+
+### Public 
+
+#### Fully Implemented
+
+- Server time
+- System status
+
+#### Implemented without options
+
+N/A
+
+
+#### Pending
+
+- Asset info
+- Tradable asset pairs
+- Ticker information
+- OHLC Data
+- Order book
+- Recent trades
+- Recent spreads
